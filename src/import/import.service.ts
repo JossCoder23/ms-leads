@@ -37,11 +37,11 @@ export class ImportService {
         // 1. PROCESAR TITULAR (UPSERT manual)
         const titularDoc = row.getCell(4).value.toString();
         const titularQuery = `
-          INSERT INTO "Participant" (document_number, paternal_surname, maternal_surname, names, phone, mail)
+          INSERT INTO events."Participant" (document_number, paternal_surname, maternal_surname, names, phone, mail)
           VALUES ($1, $2, $3, $4, $5, $6)
           ON CONFLICT (document_number) 
           DO UPDATE SET phone = EXCLUDED.phone, mail = EXCLUDED.mail
-          RETURNING id;
+          RETURNING id, uuid;
         `;
         
         const titularRes = await client.query(titularQuery, [
@@ -56,8 +56,8 @@ export class ImportService {
 
         // 2. INSCRIPCIÓN TITULAR
         const insTitularQuery = `
-          INSERT INTO "Inscription" (participant_id, event_id, relationship, program, user_id, status)
-          VALUES ($1, $2, $3, $4, $5, 'PENDIENTE');
+          INSERT INTO events."Inscription" (participant_id, event_id, relationship, program, user_id, status)
+          VALUES ($1, $2, 'TITULAR', $3, $4, 'PENDIENTE');
         `;
         await client.query(insTitularQuery, [titularId, eventId, 'TITULAR', row.getCell(17).value?.toString(), adminId]);
 

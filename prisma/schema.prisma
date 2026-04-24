@@ -1,0 +1,97 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Participant {
+  id               Int           @id @default(autoincrement())
+  uuid             String        @unique @default(uuid())
+  names            String
+  paternal_surname String
+  maternal_surname String
+  mail             String?
+  document_number  String        @unique
+  phone            String?
+  degree_study     String?
+  inscriptions     Inscription[]
+}
+
+model Event {
+  id           Int           @id @default(autoincrement())
+  name         String
+  type         String
+  start_date   DateTime
+  end_date     DateTime
+  inscriptions Inscription[]
+}
+
+model Inscription {
+  id               Int           @id @default(autoincrement())
+  participant_id   Int
+  participant      Participant   @relation(fields: [participant_id], references: [id])
+  event_id         Int
+  event            Event         @relation(fields: [event_id], references: [id])
+  parent_id        String?       // DNI o ID del padre
+  status           String        @default("PENDIENTE")
+  relationship     String?       // Parentesco
+  program          String?       // Carrera 1
+  second_program   String?       // Carrera 2
+  user_id          String        // ID del usuario de Auth Service que creó/gestionó
+  state_management String?       // Observaciones de gestión
+  interactions     Interaction[]
+}
+
+model PointInteraction {
+  id                 Int                    @id @default(autoincrement())
+  name               String
+  max_capacity       Int?
+  token_validations  Boolean                @default(false)
+  is_active          Boolean                @default(true)
+  interactions       Interaction[]
+  user_assignments   UserInteractionPoint[]
+}
+
+model Interaction {
+  id                   Int              @id @default(autoincrement())
+  inscription_id       Int
+  inscription          Inscription      @relation(fields: [inscription_id], references: [id])
+  point_interaction_id Int
+  point_interaction    PointInteraction @relation(fields: [point_interaction_id], references: [id])
+  type_interaction     String           // Ej: INGRESO, SALIDA, CHARLA
+  scanned_by           String           // UUID del usuario de Auth Service
+  metadata             Json?            // Datos extra en formato JSON
+  interaction_value    String?          // Valor capturado (ej. temperatura o puntaje)
+  created_at           DateTime         @default(now())
+}
+
+model UserInteractionPoint {
+  user_id              String
+  point_interaction_id Int
+  point_interaction    PointInteraction @relation(fields: [point_interaction_id], references: [id])
+  asigned_at           DateTime         @default(now())
+
+  @@id([user_id, point_interaction_id]) // Llave primaria compuesta
+}
+
+model ActivityLog {
+  id             Int      @id @default(autoincrement())
+  user_id        String
+  action         String
+  previous_value Json?
+  new_value      Json?
+  created_at     DateTime @default(now())
+}
+
+model Import {
+  id          Int      @id @default(autoincrement())
+  user_id     String
+  filename    String
+  total_rows  Int
+  status      String   // PENDIENTE, COMPLETADO, ERROR
+  created_at  DateTime @default(now())
+}

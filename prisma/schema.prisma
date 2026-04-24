@@ -2,10 +2,12 @@
 
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native"]
 }
 
 datasource db {
   provider = "postgresql"
+  url      = "postgresql://postgres:gLubENbzmKVrfzXBfFcOYUAmqcdcpIhE@shortline.proxy.rlwy.net:12334/railway?schema=events"
 }
 
 model Participant {

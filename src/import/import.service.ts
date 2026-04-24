@@ -27,41 +27,49 @@ export class ImportService {
 
     for (let i = 2; i <= worksheet.rowCount; i++) {
       const row = worksheet.getRow(i);
-      if (!row.getCell(1).value) continue;
+      if (!row.getCell(4).value) continue;
 
-      // Obtenemos un cliente del pool para manejar la transacción manualmente
       const client = await this.db.client.connect();
 
       try {
-        await client.query('BEGIN'); // Iniciamos transacción
+        await client.query('BEGIN');
+        // Seteamos el esquema para no tener que poner events. en cada tabla
+        await client.query('SET search_path TO events, public');
 
-        // 1. PROCESAR TITULAR (UPSERT manual)
+        // 1. PROCESAR TITULAR
         const titularDoc = row.getCell(4).value.toString();
-        const newUuid = randomUUID();
         const titularQuery = `
-          INSERT INTO events."Participant" (uuid, document_number, paternal_surname, maternal_surname, names, phone, mail)
+          INSERT INTO "Participant" (uuid, document_number, paternal_surname, maternal_surname, names, phone, mail)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
           ON CONFLICT (document_number) DO UPDATE SET phone = $6, mail = $7
           RETURNING id, uuid;
         `;
         
         const titularRes = await client.query(titularQuery, [
-          newUuid,
-          titularDoc,
-          row.getCell(5).value.toString(),
-          row.getCell(6).value.toString(),
-          `${row.getCell(7).value} ${row.getCell(8).value || ''}`.trim(),
-          row.getCell(24).value?.toString(),
-          row.getCell(25).value?.toString()
+          randomUUID(), // $1
+          titularDoc,   // $2
+          row.getCell(5).value?.toString() || '', // $3
+          row.getCell(6).value?.toString() || '', // $4
+          `${row.getCell(7).value || ''} ${row.getCell(8).value || ''}`.trim(), // $5
+          row.getCell(24).value?.toString() || null, // $6
+          row.getCell(25).value?.toString() || null  // $7
         ]);
         const titularId = titularRes.rows[0].id;
+        const titularUuid = titularRes.rows[0].uuid;
 
-        // 2. INSCRIPCIÓN TITULAR
+        // 2. INSCRIPCIÓN TITULAR (Corregido: Tenías 5 params y 4 $)
         const insTitularQuery = `
-          INSERT INTO events."Inscription" (participant_id, event_id, relationship, program, user_id, status)
-          VALUES ($1, $2, 'TITULAR', $3, $4, 'PENDIENTE');
+          INSERT INTO "Inscription" (participant_id, event_id, relationship, program, user_id, status)
+          VALUES ($1, $2, $3, $4, $5, 'PENDIENTE');
         `;
-        await client.query(insTitularQuery, [titularId, eventId, 'TITULAR', row.getCell(17).value?.toString(), adminId]);
+        // Pasamos exactamente 5 parámetros para los 5 marcadores $
+        await client.query(insTitularQuery, [
+          titularId,     // $1
+          eventId,       // $2
+          'TITULAR',     // $3
+          row.getCell(17).value?.toString() || null, // $4
+          adminId        // $5
+        ]);
 
         // 3. PROCESAR ACOMPAÑANTES
         for (const type of familyTypes) {
@@ -70,18 +78,19 @@ export class ImportService {
 
           if (famDoc) {
             const famQuery = `
-              INSERT INTO "Participant" (document_number, paternal_surname, maternal_surname, names, phone, mail)
-              VALUES ($1, $2, $3, $4, $5, $6)
+              INSERT INTO "Participant" (uuid, document_number, paternal_surname, maternal_surname, names, phone, mail)
+              VALUES ($1, $2, $3, $4, $5, $6, $7)
               ON CONFLICT (document_number) DO UPDATE SET document_number = EXCLUDED.document_number
               RETURNING id;
             `;
             const famRes = await client.query(famQuery, [
-              famDoc,
-              row.getCell(map.pat).value?.toString(),
-              row.getCell(map.mat).value?.toString(),
-              row.getCell(map.nom).value?.toString(),
-              row.getCell(map.tel).value?.toString(),
-              row.getCell(map.mail).value?.toString()
+              randomUUID(), // $1
+              famDoc,       // $2
+              row.getCell(map.pat).value?.toString() || '',
+              row.getCell(map.mat).value?.toString() || '',
+              row.getCell(map.nom).value?.toString() || '',
+              row.getCell(map.tel).value?.toString() || null,
+              row.getCell(map.mail).value?.toString() || null
             ]);
             const familiarId = famRes.rows[0].id;
 
@@ -89,17 +98,23 @@ export class ImportService {
               INSERT INTO "Inscription" (participant_id, event_id, parent_id, relationship, user_id, status)
               VALUES ($1, $2, $3, $4, $5, 'PENDIENTE');
             `;
-            await client.query(insFamQuery, [familiarId, eventId, titularDoc, type.toUpperCase(), adminId]);
+            await client.query(insFamQuery, [
+              familiarId,   // $1
+              eventId,      // $2
+              titularUuid,  // $3 (Relación por UUID)
+              type.toUpperCase(), // $4
+              adminId       // $5
+            ]);
           }
         }
 
-        await client.query('COMMIT'); // Todo bien, guardamos
+        await client.query('COMMIT');
         results.success++;
       } catch (error: any) {
-        await client.query('ROLLBACK'); // Error, revertimos la fila
+        await client.query('ROLLBACK');
         results.errors.push({ fila: i, error: error.message });
       } finally {
-        client.release(); // Importante: liberamos el cliente de vuelta al pool
+        client.release();
       }
     }
     return results;

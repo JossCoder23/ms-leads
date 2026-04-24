@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as ExcelJS from 'exceljs';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ImportService {
@@ -36,15 +37,16 @@ export class ImportService {
 
         // 1. PROCESAR TITULAR (UPSERT manual)
         const titularDoc = row.getCell(4).value.toString();
+        const newUuid = randomUUID();
         const titularQuery = `
-          INSERT INTO events."Participant" (document_number, paternal_surname, maternal_surname, names, phone, mail)
-          VALUES ($1, $2, $3, $4, $5, $6)
-          ON CONFLICT (document_number) 
-          DO UPDATE SET phone = EXCLUDED.phone, mail = EXCLUDED.mail
+          INSERT INTO events."Participant" (uuid, document_number, paternal_surname, maternal_surname, names, phone, mail)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (document_number) DO UPDATE SET phone = $6, mail = $7
           RETURNING id, uuid;
         `;
         
         const titularRes = await client.query(titularQuery, [
+          newUuid,
           titularDoc,
           row.getCell(5).value.toString(),
           row.getCell(6).value.toString(),

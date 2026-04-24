@@ -78,7 +78,7 @@ export class ImportService {
 
           if (famDoc) {
             const famQuery = `
-              INSERT INTO "Participant" (uuid, document_number, paternal_surname, maternal_surname, names, phone, mail)
+              INSERT INTO events."Participant" (uuid, document_number, paternal_surname, maternal_surname, names, phone, mail)
               VALUES ($1, $2, $3, $4, $5, $6, $7)
               ON CONFLICT (document_number) DO UPDATE SET document_number = EXCLUDED.document_number
               RETURNING id;

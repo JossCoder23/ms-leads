@@ -19,7 +19,9 @@ export class ImportService {
       const row = worksheet.getRow(i);
       
       // Columna 5: NroDocumento (Titular)
-      const titularDoc = row.getCell(5).value?.toString();
+      const titularDoc = row.getCell(5).value?.toString()?.trim();
+      
+      // Seguridad: Si no hay DNI del titular, saltamos la fila
       if (!titularDoc) continue;
 
       const client = await this.db.client.connect();
@@ -40,12 +42,12 @@ export class ImportService {
         
         const titularRes = await client.query(titularQuery, [
           randomUUID(),
-          titularDoc,
-          row.getCell(1).value?.toString() || '',   // ApellidoPaterno
-          row.getCell(2).value?.toString() || '',   // ApellidoMaterno
-          row.getCell(3).value?.toString() || '',   // Nombres
-          row.getCell(7).value?.toString() || null, // Celular
-          row.getCell(6).value?.toString() || null  // Correo
+          titularDoc,                               // Col 5
+          row.getCell(1).value?.toString() || '',    // Col 1: ApellidoPaterno
+          row.getCell(2).value?.toString() || '',    // Col 2: ApellidoMaterno
+          row.getCell(3).value?.toString() || '',    // Col 3: Nombres
+          row.getCell(7).value?.toString() || null,  // Col 7: Celular
+          row.getCell(6).value?.toString() || null   // Col 6: Correo
         ]);
         const titularId = titularRes.rows[0].id;
         const titularUuid = titularRes.rows[0].uuid;
@@ -53,20 +55,20 @@ export class ImportService {
         // 2. INSCRIPCIÓN TITULAR
         const insTitularQuery = `
           INSERT INTO "Inscription" (participant_id, event_id, relationship, program, user_id, status)
-          VALUES ($1, $2, $3, $4, $5, 'PENDIENTE');
+          VALUES ($1, $2, 'TITULAR', $3, $4, 'PENDIENTE');
         `;
         await client.query(insTitularQuery, [
           titularId, 
           eventId, 
-          'TITULAR', 
-          row.getCell(9).value?.toString() || null, // Programa
+          row.getCell(9).value?.toString() || null, // Col 9: Programa
           adminId
         ]);
 
         // ==========================================
-        // 3. PROCESAR ACOMPAÑANTE (Si existe)
+        // 3. PROCESAR ACOMPAÑANTE
         // ==========================================
-        const famDoc = row.getCell(14).value?.toString(); // NroDocumentoAcompanante
+        // El DNI del acompañante está en la Columna 14
+        const famDoc = row.getCell(14).value?.toString()?.trim();
 
         if (famDoc) {
           const famQuery = `
@@ -77,16 +79,16 @@ export class ImportService {
           `;
           const famRes = await client.query(famQuery, [
             randomUUID(),
-            famDoc,
-            row.getCell(11).value?.toString() || '', // ApellidoAcompanante (Va a Paterno)
-            '',                                      // Materno (Ya no hay columna separada)
-            row.getCell(12).value?.toString() || '', // NombreAcompanante
-            null,                                    // Celular Acompañante (No hay en Excel)
-            null                                     // Correo Acompañante (No hay en Excel)
+            famDoc,                                  // Col 14
+            row.getCell(11).value?.toString() || '', // Col 11: ApellidoAcompanante
+            '',                                      // Materno vacío
+            row.getCell(12).value?.toString() || '', // Col 12: NombreAcompanante
+            null,
+            null
           ]);
           const familiarId = famRes.rows[0].id;
 
-          // Obtenemos el parentezco de la columna 15, si está vacío por defecto es 'ACOMPAÑANTE'
+          // Parentezco en la Columna 15
           const parentezcoRaw = row.getCell(15).value?.toString() || 'ACOMPAÑANTE';
 
           const insFamQuery = `
@@ -96,8 +98,8 @@ export class ImportService {
           await client.query(insFamQuery, [
             familiarId,
             eventId,
-            titularUuid,
-            parentezcoRaw.toUpperCase(), // Columna Parentezco
+            titularUuid, // El UUID que generamos arriba
+            parentezcoRaw.toUpperCase(),
             adminId
           ]);
         }
@@ -106,12 +108,16 @@ export class ImportService {
         results.success++;
       } catch (error: any) {
         await client.query('ROLLBACK');
-        console.error(`Error en fila ${i}:`, error.message);
         results.errors.push({ fila: i, error: error.message });
       } finally {
         client.release();
       }
     }
-    return results;
+
+    return {
+      success: results.success,
+      totalProcessed: worksheet.rowCount - 1, // Total de filas intentadas
+      errors: results.errors // Aquí verás qué filas no tenían titular
+    };
   }
 }

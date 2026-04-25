@@ -60,6 +60,28 @@ export class CheckInService {
         throw new ConflictException('INGRESO DENEGADO: Este participante ya registró su ingreso previamente.');
       }
 
+        // ==========================================
+        // NUEVA BARRERA: Evitar duplicados en Interaction
+        // ==========================================
+        const duplicateInteractionQuery = `
+        SELECT id 
+        FROM "Interaction" 
+        WHERE inscription_id = $1 
+            AND point_interaction_id = $2 
+            AND type_interaction = 'CHECK_IN'
+        LIMIT 1;
+        `;
+        // Recuerda que aquí inscription.id o participant.id depende de lo que decidiste guardar
+        const duplicateRes = await client.query(duplicateInteractionQuery, [participant.id, pointInteractionId]);
+
+        if (duplicateRes.rows.length > 0) {
+            // Opción A: Lanzar error (Conflict)
+            // throw new ConflictException('AVISO: Esta interacción ya fue registrada en este punto.');
+            
+            // Opción B: Simplemente retornar éxito sin insertar (Silent Success)
+            return { success: true, message: 'Ya ha sido registrado anteriormente'};
+        }
+
       // ==========================================
       // 4. TRANSACCIÓN ATÓMICA (UPDATE + INSERT)
       // ==========================================

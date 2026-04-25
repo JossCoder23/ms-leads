@@ -1,4 +1,4 @@
-import { Controller, Get, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, NotFoundException, Param } from '@nestjs/common';
 import { ParticipantsService } from './participant.service';
 
 @Controller('participants')
@@ -13,4 +13,26 @@ export class ParticipantsController {
     
     return this.participantsService.findAllTitulars(Number(eventId));
   }
+
+  @Get('search/:document_number')
+  async searchTitular(
+    @Param('document_number') documentNumber: string,
+    @Query('event_id') eventId: string
+  ) {
+    if (!eventId) {
+      throw new BadRequestException('El event_id es obligatorio');
+    }
+
+    const participant = await this.participantsService.findTitularByDocument(
+      Number(eventId), 
+      documentNumber
+    );
+
+    if (!participant) {
+      throw new NotFoundException(`No se encontró un titular con el documento ${documentNumber}`);
+    }
+
+    return participant;
+  }
+
 }

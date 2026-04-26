@@ -39,57 +39,111 @@ export class ParticipantsService {
     }
   }
 
-  async findTitularByDocument(eventId: number, documentNumber: string) {
-    const client = await this.db.client.connect();
+  // async findTitularByDocument(eventId: number, documentNumber: string) {
+  //   const client = await this.db.client.connect();
 
-    try {
-      await client.query('SET search_path TO events, public');
+  //   try {
+  //     await client.query('SET search_path TO events, public');
 
-      const query = `
-        SELECT 
-          p.id as participant_id,
-          p.uuid,
-          p.document_number,
-          p.names,
-          p.paternal_surname,
-          p.maternal_surname,
-          i.program,
-          i.status,
-          i.id as inscription_id,
-          -- Subconsulta para traer acompañantes como un array de objetos JSON
-          (
-            SELECT COALESCE(json_agg(companion_data), '[]'::json)
-            FROM (
-              SELECT 
-                p2.document_number,
-                p2.names,
-                p2.paternal_surname,
-                p2.maternal_surname,
-                i2.relationship,
-                i2.status
-              FROM "Inscription" i2
-              JOIN "Participant" p2 ON i2.participant_id = p2.id
-              WHERE i2.parent_id = p.uuid -- Buscamos por el UUID del titular
-                AND i2.event_id = $1
-            ) companion_data
-          ) as companions
-        FROM "Inscription" i
-        JOIN "Participant" p ON i.participant_id = p.id
-        WHERE i.relationship = 'TITULAR' 
-          AND i.event_id = $1
-          AND p.document_number = $2
-        LIMIT 1;
-      `;
+  //     const query = `
+  //       SELECT 
+  //         p.id as participant_id,
+  //         p.uuid,
+  //         p.document_number,
+  //         p.names,
+  //         p.paternal_surname,
+  //         p.maternal_surname,
+  //         i.program,
+  //         i.status,
+  //         i.id as inscription_id,
+  //         -- Subconsulta para traer acompañantes como un array de objetos JSON
+  //         (
+  //           SELECT COALESCE(json_agg(companion_data), '[]'::json)
+  //           FROM (
+  //             SELECT 
+  //               p2.document_number,
+  //               p2.names,
+  //               p2.paternal_surname,
+  //               p2.maternal_surname,
+  //               i2.relationship,
+  //               i2.status
+  //             FROM "Inscription" i2
+  //             JOIN "Participant" p2 ON i2.participant_id = p2.id
+  //             WHERE i2.parent_id = p.uuid -- Buscamos por el UUID del titular
+  //               AND i2.event_id = $1
+  //           ) companion_data
+  //         ) as companions
+  //       FROM "Inscription" i
+  //       JOIN "Participant" p ON i.participant_id = p.id
+  //       WHERE i.relationship = 'TITULAR' 
+  //         AND i.event_id = $1
+  //         AND p.document_number = $2
+  //       LIMIT 1;
+  //     `;
 
-      const res = await client.query(query, [eventId, documentNumber]);
+  //     const res = await client.query(query, [eventId, documentNumber]);
       
-      return res.rows.length > 0 ? res.rows[0] : null;
-    } catch (error) {
-      console.error('Error searching titular:', error);
-      throw new InternalServerErrorException('Error en la búsqueda del participante');
-    } finally {
-      client.release();
-    }
+  //     return res.rows.length > 0 ? res.rows[0] : null;
+  //   } catch (error) {
+  //     console.error('Error searching titular:', error);
+  //     throw new InternalServerErrorException('Error en la búsqueda del participante');
+  //   } finally {
+  //     client.release();
+  //   }
+  // }
+
+  async findParticipantByDocument(eventId: number, documentNumber: string) {
+      const client = await this.db.client.connect();
+
+      try {
+        await client.query('SET search_path TO events, public');
+
+        const query = `
+          SELECT 
+            p.id as participant_id,
+            p.uuid,
+            p.document_number,
+            p.names,
+            p.paternal_surname,
+            p.maternal_surname,
+            i.program,
+            i.status,
+            i.relationship, -- Añadimos el rol para saber qué es
+            i.id as inscription_id,
+            i.parent_id,    -- Para saber quién es su titular si es acompañante
+            -- Subconsulta para traer acompañantes (solo si es titular)
+            (
+              SELECT COALESCE(json_agg(companion_data), '[]'::json)
+              FROM (
+                SELECT 
+                  p2.document_number,
+                  p2.names,
+                  p2.paternal_surname,
+                  p2.maternal_surname,
+                  i2.relationship,
+                  i2.status
+                FROM "Inscription" i2
+                JOIN "Participant" p2 ON i2.participant_id = p2.id
+                WHERE i2.parent_id = p.uuid 
+                  AND i2.event_id = $1
+              ) companion_data
+            ) as companions
+          FROM "Inscription" i
+          JOIN "Participant" p ON i.participant_id = p.id
+          WHERE i.event_id = $1
+            AND p.document_number = $2
+          LIMIT 1;
+        `;
+
+        const res = await client.query(query, [eventId, documentNumber]);
+        
+        return res.rows.length > 0 ? res.rows[0] : null;
+      } catch (error) {
+        console.error('Error searching participant:', error);
+        throw new InternalServerErrorException('Error en la búsqueda del participante');
+      } finally {
+        client.release();
+      }
   }
 
   // async addCompanion(eventId: number, parentId: string, data: any, staffId:string) {

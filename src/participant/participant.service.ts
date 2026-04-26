@@ -258,4 +258,45 @@ export class ParticipantsService {
     }
   }
 
+  async getAllCompanions(eventId: number) {
+    const client = await this.db.client.connect();
+
+    try {
+      await client.query('SET search_path TO events, public');
+
+      const query = `
+        SELECT 
+          p.document_number,
+          p.names,
+          p.paternal_surname,
+          p.maternal_surname,
+          i.relationship,
+          i.status,
+          i.program,
+          -- Traemos el nombre del Titular asociado
+          p_parent.names as parent_names,
+          p_parent.paternal_surname as parent_paternal_surname
+        FROM "Inscription" i
+        JOIN "Participant" p ON i.participant_id = p.id
+        LEFT JOIN "Participant" p_parent ON i.parent_id = p_parent.uuid
+        WHERE i.event_id = $1 
+          AND i.relationship != 'TITULAR'
+        ORDER BY p.paternal_surname ASC;
+      `;
+
+      const res = await client.query(query, [eventId]);
+      
+      return {
+        success: true,
+        count: res.rows.length,
+        data: res.rows
+      };
+    } catch (error) {
+      console.error('Error obteniendo acompañantes:', error);
+      throw new InternalServerErrorException('No se pudo obtener la lista de acompañantes');
+    } finally {
+      client.release();
+    }
+  }
+
 }

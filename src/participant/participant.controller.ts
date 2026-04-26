@@ -35,6 +35,11 @@ export class ParticipantsController {
     return participant;
   }
 
+  @Get('companions-list')
+  async getCompanions(@Query('event_id') eventId: string) {
+    return await this.participantsService.getAllCompanions(Number(eventId));
+  }
+
   @Post('/companion')
   async createCompanion(
     @Body() body: any,

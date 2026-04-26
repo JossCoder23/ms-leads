@@ -14,6 +14,11 @@ export class ParticipantsController {
     return this.participantsService.findAllTitulars(Number(eventId));
   }
 
+  @Get('/companions-list')
+  async getCompanions(@Query('event_id') eventId: string) {
+    return await this.participantsService.getAllCompanions(Number(eventId));
+  }
+
   @Get('/:document_number')
   async searchTitular(
     @Param('document_number') documentNumber: string,
@@ -33,11 +38,6 @@ export class ParticipantsController {
     }
 
     return participant;
-  }
-
-  @Get('/companions-list')
-  async getCompanions(@Query('event_id') eventId: string) {
-    return await this.participantsService.getAllCompanions(Number(eventId));
   }
 
   @Post('/companion')

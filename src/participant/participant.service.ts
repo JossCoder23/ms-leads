@@ -94,7 +94,7 @@ export class ParticipantsService {
       const participantRes = await client.query(insertParticipantQuery, [
         data.names,
         data.paternal_surname,
-        data.maternal_surname || '',
+        data.maternal_surname || 'Acompañante',
         data.document_number,
         data.phone,
       ]);

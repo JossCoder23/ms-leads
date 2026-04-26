@@ -87,8 +87,8 @@ export class ParticipantsService {
 
       // 1. Insertar el nuevo participante (el acompañante)
       const insertParticipantQuery = `
-        INSERT INTO "Participant" (names, paternal_surname, maternal_surname,document_number, phone, uuid)
-        VALUES ($1, $2, $3, $4, $5 gen_random_uuid())
+        INSERT INTO "Participant" (names, paternal_surname, maternal_surname, document_number, phone, uuid)
+        VALUES ($1, $2, $3, $4, $5, gen_random_uuid())
         RETURNING id, uuid;
       `;
       const participantRes = await client.query(insertParticipantQuery, [

@@ -35,7 +35,7 @@ export class ParticipantsController {
     return participant;
   }
 
-  @Post('companion')
+  @Post('/companion')
   async createCompanion(@Body() body: any) {
     const { event_id, parent_uuid, ...companionData } = body;
 

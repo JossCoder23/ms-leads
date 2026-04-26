@@ -92,7 +92,7 @@ export class ParticipantsService {
   //   }
   // }
 
-  async findParticipantByDocument(eventId: number, documentNumber: string) {
+  async findTitularByDocument(eventId: number, documentNumber: string) {
       const client = await this.db.client.connect();
 
       try {

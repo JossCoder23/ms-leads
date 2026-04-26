@@ -46,6 +46,7 @@ export class ParticipantsService {
 
       const query = `
         SELECT 
+          p.id as participant_id,
           p.uuid,
           p.document_number,
           p.names,
@@ -54,22 +55,34 @@ export class ParticipantsService {
           i.program,
           i.status,
           i.id as inscription_id,
-          p.id as participant_id
+          -- Subconsulta para traer acompañantes como un array de objetos JSON
+          (
+            SELECT COALESCE(json_agg(companion_data), '[]'::json)
+            FROM (
+              SELECT 
+                p2.document_number,
+                p2.names,
+                p2.paternal_surname,
+                p2.maternal_surname,
+                i2.relationship,
+                i2.status
+              FROM "Inscription" i2
+              JOIN "Participant" p2 ON i2.participant_id = p2.id
+              WHERE i2.parent_id = p.uuid -- Buscamos por el UUID del titular
+                AND i2.event_id = $1
+            ) companion_data
+          ) as companions
         FROM "Inscription" i
         JOIN "Participant" p ON i.participant_id = p.id
         WHERE i.relationship = 'TITULAR' 
           AND i.event_id = $1
-          AND p.document_number = $2 -- Búsqueda exacta
+          AND p.document_number = $2
         LIMIT 1;
       `;
 
       const res = await client.query(query, [eventId, documentNumber]);
       
-      if (res.rows.length === 0) {
-        return null; // O podrías lanzar un NotFoundException
-      }
-
-      return res.rows[0];
+      return res.rows.length > 0 ? res.rows[0] : null;
     } catch (error) {
       console.error('Error searching titular:', error);
       throw new InternalServerErrorException('Error en la búsqueda del participante');

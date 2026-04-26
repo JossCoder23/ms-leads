@@ -14,7 +14,7 @@ export class ParticipantsController {
     return this.participantsService.findAllTitulars(Number(eventId));
   }
 
-  @Get('search/:document_number')
+  @Get('/:document_number')
   async searchTitular(
     @Param('document_number') documentNumber: string,
     @Query('event_id') eventId: string

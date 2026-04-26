@@ -1,4 +1,4 @@
-import { Controller, Get, Query, BadRequestException, NotFoundException, Param } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, NotFoundException, Param, Body, Post } from '@nestjs/common';
 import { ParticipantsService } from './participant.service';
 
 @Controller('participants')
@@ -33,6 +33,21 @@ export class ParticipantsController {
     }
 
     return participant;
+  }
+
+  @Post('companion')
+  async createCompanion(@Body() body: any) {
+    const { event_id, parent_uuid, ...companionData } = body;
+
+    if (!event_id || !parent_uuid) {
+      throw new BadRequestException('Faltan datos obligatorios (event_id o parent_uuid)');
+    }
+
+    return this.participantsService.addCompanion(
+      Number(event_id),
+      parent_uuid,
+      companionData
+    );
   }
 
 }

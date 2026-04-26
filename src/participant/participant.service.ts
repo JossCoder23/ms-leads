@@ -14,6 +14,7 @@ export class ParticipantsService {
       const query = `
         SELECT 
           p.document_number,
+          p.uuid,
           p.names,
           p.paternal_surname,
           p.maternal_surname,

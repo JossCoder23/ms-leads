@@ -225,6 +225,118 @@ export class ParticipantsService {
   //     }
   // }
 
+  // async addCompanion(eventId: number, parentId: string, data: any, staffId: string) {
+  //   const client = await this.db.client.connect();
+
+  //   try {
+  //     await client.query('SET search_path TO events, public');
+  //     await client.query('BEGIN');
+
+  //     // 1. "UPSERT" del Participante (Evita el error de DNI duplicado)
+  //     const upsertParticipantQuery = `
+  //       INSERT INTO "Participant" (names, paternal_surname, maternal_surname, document_number, phone, uuid)
+  //       VALUES ($1, $2, $3, $4, $5, gen_random_uuid())
+  //       ON CONFLICT (document_number) 
+  //       DO UPDATE SET 
+  //           names = EXCLUDED.names,
+  //           paternal_surname = EXCLUDED.paternal_surname,
+  //           maternal_surname = EXCLUDED.maternal_surname,
+  //           phone = EXCLUDED.phone
+  //       RETURNING id;
+  //     `;
+      
+  //     const participantRes = await client.query(upsertParticipantQuery, [
+  //       data.names,
+  //       data.paternal_surname,
+  //       data.maternal_surname || '',
+  //       data.document_number,
+  //       data.phone || '',
+  //     ]);
+  //     const participantId = participantRes.rows[0].id;
+
+  //     // 2. Obtener o Crear Inscripción (Evita error de inscripción duplicada)
+  //     const checkInscription = await client.query(
+  //       `SELECT id FROM "Inscription" WHERE participant_id = $1 AND event_id = $2 LIMIT 1`,
+  //       [participantId, eventId]
+  //     );
+
+  //     let finalInscriptionId: number;
+
+  //     if (checkInscription.rows.length > 0) {
+  //         finalInscriptionId = checkInscription.rows[0].id;
+  //         await client.query(
+  //             `UPDATE "Inscription" SET status = 'ASISTIÓ' WHERE id = $1`,
+  //             [finalInscriptionId]
+  //         );
+  //     } else {
+  //         const insertInscriptionQuery = `
+  //           INSERT INTO "Inscription" (participant_id, event_id, relationship, parent_id, status, program, user_id)
+  //           VALUES ($1, $2, $3, $4, 'ASISTIÓ', $5, $6)
+  //           RETURNING id;
+  //         `;
+  //         const insRes = await client.query(insertInscriptionQuery, [
+  //           participantId,
+  //           eventId,
+  //           data.relationship,
+  //           parentId,
+  //           data.program || 'Acompañante',
+  //           staffId
+  //         ]);
+  //         finalInscriptionId = insRes.rows[0].id;
+  //     }
+
+  //     // 3. Obtener el punto de interacción del staff
+  //     const pointRes = await client.query(
+  //         `SELECT point_interaction_id FROM "UserInteractionPoint" WHERE user_id = $1 LIMIT 1`,
+  //         [staffId]
+  //     );
+  //     const pointId = pointRes.rows[0]?.point_interaction_id;
+
+  //     if (!pointId) {
+  //         throw new Error('El staff no tiene un punto de interacción asignado.');
+  //     }
+
+  //     // 4. Generar el registro en Interaction usando el INSCRIPTION_ID (No el de participante)
+  //     // Esto evita el error de "violates foreign key constraint"
+  //     const checkInteraction = await client.query(
+  //         `SELECT id FROM "Interaction" WHERE inscription_id = $1 AND type_interaction = 'CHECK_IN' LIMIT 1`,
+  //         [finalInscriptionId]
+  //     );
+
+  //     if (checkInteraction.rows.length === 0) {
+  //         const insertInteractionQuery = `
+  //           INSERT INTO "Interaction" (
+  //             inscription_id, 
+  //             point_interaction_id, 
+  //             type_interaction, 
+  //             scanned_by
+  //           )
+  //           VALUES ($1, $2, 'CHECK_IN', $3);
+  //         `;
+  //         await client.query(insertInteractionQuery, [finalInscriptionId, pointId, staffId]);
+  //     }
+
+  //     await client.query('COMMIT');
+
+  //     return { 
+  //       success: true, 
+  //       message: 'Acompañante procesado e ingreso marcado',
+  //       data: {
+  //         participant_id: participantId,
+  //         inscription_id: finalInscriptionId,
+  //         status: 'ASISTIÓ'
+  //       }
+  //     };
+
+  //   } catch (error: any) {
+  //     await client.query('ROLLBACK');
+  //     console.error('Error al registrar acompañante en puerta:', error.message);
+  //     throw new InternalServerErrorException(error.message || 'Error al completar el registro');
+  //   } finally {
+  //     client.release();
+  //   }
+  // } 
+
   async addCompanion(eventId: number, parentId: string, data: any, staffId: string) {
     const client = await this.db.client.connect();
 
@@ -232,7 +344,7 @@ export class ParticipantsService {
       await client.query('SET search_path TO events, public');
       await client.query('BEGIN');
 
-      // 1. "UPSERT" del Participante (Evita el error de DNI duplicado)
+      // 1. Manejo del Participante (Upsert para evitar error de DNI duplicado)
       const upsertParticipantQuery = `
         INSERT INTO "Participant" (names, paternal_surname, maternal_surname, document_number, phone, uuid)
         VALUES ($1, $2, $3, $4, $5, gen_random_uuid())
@@ -254,19 +366,20 @@ export class ParticipantsService {
       ]);
       const participantId = participantRes.rows[0].id;
 
-      // 2. Obtener o Crear Inscripción (Evita error de inscripción duplicada)
+      // 2. Manejo de la Inscripción (Obtenemos el ID de la inscripción, NO del participante)
       const checkInscription = await client.query(
         `SELECT id FROM "Inscription" WHERE participant_id = $1 AND event_id = $2 LIMIT 1`,
         [participantId, eventId]
       );
 
-      let finalInscriptionId: number;
+      let inscriptionId: number;
 
       if (checkInscription.rows.length > 0) {
-          finalInscriptionId = checkInscription.rows[0].id;
+          inscriptionId = checkInscription.rows[0].id;
+          // Si ya existía, nos aseguramos de que el estado sea ASISTIÓ
           await client.query(
               `UPDATE "Inscription" SET status = 'ASISTIÓ' WHERE id = $1`,
-              [finalInscriptionId]
+              [inscriptionId]
           );
       } else {
           const insertInscriptionQuery = `
@@ -282,7 +395,7 @@ export class ParticipantsService {
             data.program || 'Acompañante',
             staffId
           ]);
-          finalInscriptionId = insRes.rows[0].id;
+          inscriptionId = insRes.rows[0].id;
       }
 
       // 3. Obtener el punto de interacción del staff
@@ -296,11 +409,11 @@ export class ParticipantsService {
           throw new Error('El staff no tiene un punto de interacción asignado.');
       }
 
-      // 4. Generar el registro en Interaction usando el INSCRIPTION_ID (No el de participante)
-      // Esto evita el error de "violates foreign key constraint"
+      // 4. Registro en Interaction (Usando el inscriptionId real)
+      // Esto soluciona el error de Foreign Key de Railway
       const checkInteraction = await client.query(
           `SELECT id FROM "Interaction" WHERE inscription_id = $1 AND type_interaction = 'CHECK_IN' LIMIT 1`,
-          [finalInscriptionId]
+          [inscriptionId]
       );
 
       if (checkInteraction.rows.length === 0) {
@@ -313,28 +426,27 @@ export class ParticipantsService {
             )
             VALUES ($1, $2, 'CHECK_IN', $3);
           `;
-          await client.query(insertInteractionQuery, [finalInscriptionId, pointId, staffId]);
+          await client.query(insertInteractionQuery, [inscriptionId, pointId, staffId]);
       }
 
       await client.query('COMMIT');
 
       return { 
         success: true, 
-        message: 'Acompañante procesado e ingreso marcado',
+        message: 'Registro y asistencia del acompañante completados',
         data: {
           participant_id: participantId,
-          inscription_id: finalInscriptionId,
-          status: 'ASISTIÓ'
+          inscription_id: inscriptionId
         }
       };
 
     } catch (error: any) {
       await client.query('ROLLBACK');
-      console.error('Error al registrar acompañante en puerta:', error.message);
-      throw new InternalServerErrorException(error.message || 'Error al completar el registro');
+      console.error('Error detallado:', error.message);
+      throw new InternalServerErrorException(error.message || 'Error al procesar acompañante');
     } finally {
       client.release();
     }
-  } 
+  }
 
 }

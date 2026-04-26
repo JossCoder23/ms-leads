@@ -101,7 +101,7 @@ export class CheckInService {
         )
         VALUES ($1, $2, 'CHECK_IN', $3);
       `;
-      await client.query(insertInteractionQuery, [participant.id, pointInteractionId, scannedBy]);
+      await client.query(insertInteractionQuery, [inscription.id, pointInteractionId, scannedBy]);
 
       await client.query('COMMIT'); 
 

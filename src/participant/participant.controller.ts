@@ -1,4 +1,4 @@
-import { Controller, Get, Query, BadRequestException, NotFoundException, Param, Body, Post } from '@nestjs/common';
+import { Controller, Get, Query, BadRequestException, NotFoundException, Param, Body, Headers, Post } from '@nestjs/common';
 import { ParticipantsService } from './participant.service';
 
 @Controller('participants')
@@ -36,8 +36,15 @@ export class ParticipantsController {
   }
 
   @Post('/companion')
-  async createCompanion(@Body() body: any) {
+  async createCompanion(
+    @Body() body: any,
+    @Headers('x-user-id') staffId: string
+  ) {
     const { event_id, parent_uuid, ...companionData } = body;
+
+    if (!staffId) {
+       throw new BadRequestException('No se identificó al usuario que realiza el registro (x-user-id missing)');
+    }
 
     if (!event_id || !parent_uuid) {
       throw new BadRequestException('Faltan datos obligatorios (event_id o parent_uuid)');
@@ -46,7 +53,8 @@ export class ParticipantsController {
     return this.participantsService.addCompanion(
       Number(event_id),
       parent_uuid,
-      companionData
+      companionData,
+      staffId
     );
   }
 

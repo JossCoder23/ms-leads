@@ -78,7 +78,7 @@ export class ParticipantsService {
     }
   }
 
-  async addCompanion(eventId: number, parentId: string, data: any) {
+  async addCompanion(eventId: number, parentId: string, data: any, staffId:string) {
     const client = await this.db.client.connect();
 
     try {
@@ -103,8 +103,8 @@ export class ParticipantsService {
       // 2. Insertar la inscripción vinculándola al titular (parent_id)
       // Usamos el parentId (UUID del titular) para mantener la jerarquía
       const insertInscriptionQuery = `
-        INSERT INTO "Inscription" (participant_id, event_id, relationship, parent_id, status, program)
-        VALUES ($1, $2, $3, $4, 'PENDIENTE', $5);
+        INSERT INTO "Inscription" (participant_id, event_id, relationship, parent_id, status, program, user_id)
+        VALUES ($1, $2, $3, $4, 'PENDIENTE', $5, $6);
       `;
       
       // El 'program' suele ser el mismo del titular en estos eventos
@@ -113,7 +113,8 @@ export class ParticipantsService {
         eventId,
         data.relationship, // El parentesco (PADRE, MADRE, etc.)
         parentId,          // El UUID del titular que ya obtuviste en la búsqueda
-        data.program || 'Acompañante' 
+        data.program || 'Acompañante' ,
+        staffId
       ]);
 
       await client.query('COMMIT');
